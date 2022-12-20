@@ -1,5 +1,4 @@
-use std::fmt::Debug;
-use std::io::Cursor;
+use std::{fmt::Debug, io::Cursor};
 
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use diesel::{
@@ -12,27 +11,22 @@ use crate::{
     ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
     linestring::write_linestring,
     points::Dimension,
-    types::{LineString, MultiLineString, PointT},
+    types::{LineString, MultiLineString, PointT}, error::check_srid,
 };
 
-use crate::points::read_point_coordinates;
-use crate::sql_types::*;
+use crate::{points::read_point_coordinates, sql_types::*};
 
-impl<T> MultiLineString<T>
+impl<const SRID: u32, T> MultiLineString<SRID, T>
 where
-    T: PointT + Clone,
+    T: PointT<SRID> + Clone,
 {
-    pub fn new(srid: Option<u32>) -> Self {
-        MultiLineString {
-            lines: Vec::new(),
-            srid: srid,
-        }
+    pub fn new() -> Self {
+        MultiLineString { lines: Vec::new() }
     }
 
     pub fn add_line<'a>(&'a mut self) -> &mut Self {
         self.lines.push(LineString {
             points: Vec::new(),
-            srid: self.srid,
         });
         self
     }
@@ -65,9 +59,9 @@ where
     }
 }
 
-impl<T> EwkbSerializable for MultiLineString<T>
+impl<const SRID: u32, T> EwkbSerializable for MultiLineString<SRID, T>
 where
-    T: PointT,
+    T: PointT<SRID>,
 {
     fn geometry_type(&self) -> u32 {
         let mut g_type = GeometryType::MultiLineString as u32;
@@ -78,67 +72,68 @@ where
     }
 }
 
-impl<T> ToSql<Geometry, Pg> for MultiLineString<T>
+impl<const SRID: u32, T> ToSql<Geometry, Pg> for MultiLineString<SRID, T>
 where
-    T: PointT + Debug + PartialEq + EwkbSerializable + Clone,
+    T: PointT<SRID> + Debug + PartialEq + EwkbSerializable + Clone,
 {
     fn to_sql(&self, out: &mut Output<Pg>) -> serialize::Result {
-        write_multiline(self, self.srid, out)
+        write_multiline(self, out)
     }
 }
 
-impl<T> FromSql<Geometry, Pg> for MultiLineString<T>
+impl<const SRID: u32, T> FromSql<Geometry, Pg> for MultiLineString<SRID, T>
 where
-    T: PointT + Debug + Clone,
+    T: PointT<SRID> + Debug + Clone,
 {
     fn from_sql(bytes: pg::PgValue) -> deserialize::Result<Self> {
         let mut r = Cursor::new(bytes.as_bytes());
         let end = r.read_u8()?;
         if end == BIG_ENDIAN {
-            read_multiline::<BigEndian, T>(&mut r)
+            read_multiline::<SRID, BigEndian, T>(&mut r)
         } else {
-            read_multiline::<LittleEndian, T>(&mut r)
+            read_multiline::<SRID, LittleEndian, T>(&mut r)
         }
     }
 }
 
-pub fn write_multiline<T>(
-    multiline: &MultiLineString<T>,
-    srid: Option<u32>,
+pub fn write_multiline<const SRID: u32, T>(
+    multiline: &MultiLineString<SRID, T>,
     out: &mut Output<Pg>,
 ) -> serialize::Result
 where
-    T: PointT + EwkbSerializable + Clone,
+    T: PointT<SRID> + EwkbSerializable + Clone,
 {
-    write_ewkb_header(multiline, srid, out)?;
+    write_ewkb_header(multiline, Some(SRID), out)?;
     // number of lines
     out.write_u32::<LittleEndian>(multiline.lines.len() as u32)?;
     for line in multiline.lines.iter() {
-        write_linestring(line, None, out)?;
+        write_linestring(line, out)?;
     }
     Ok(IsNull::No)
 }
 
-fn read_multiline<T, P>(cursor: &mut Cursor<&[u8]>) -> deserialize::Result<MultiLineString<P>>
+fn read_multiline<const SRID: u32, T, P>(
+    cursor: &mut Cursor<&[u8]>,
+) -> deserialize::Result<MultiLineString<SRID, P>>
 where
     T: byteorder::ByteOrder,
-    P: PointT + Clone,
+    P: PointT<SRID> + Clone,
 {
     let g_header = read_ewkb_header::<T>(GeometryType::MultiLineString, cursor)?;
-    read_multiline_body::<T, P>(g_header.g_type, g_header.srid, cursor)
+    check_srid(g_header.srid, SRID)?;
+    read_multiline_body::<SRID, T, P>(g_header.g_type, cursor)
 }
 
-pub fn read_multiline_body<T, P>(
+pub fn read_multiline_body<const SRID: u32, T, P>(
     g_type: u32,
-    srid: Option<u32>,
     cursor: &mut Cursor<&[u8]>,
-) -> deserialize::Result<MultiLineString<P>>
+) -> deserialize::Result<MultiLineString<SRID, P>>
 where
     T: byteorder::ByteOrder,
-    P: PointT + Clone,
+    P: PointT<SRID> + Clone,
 {
     let lines_n = cursor.read_u32::<T>()?;
-    let mut multiline = MultiLineString::new(srid);
+    let mut multiline = MultiLineString::new();
     for _i in 0..lines_n {
         multiline.add_line();
         // skip 1 byte for byte order and 4 bytes for point type
@@ -146,7 +141,7 @@ where
         cursor.read_u32::<T>()?;
         let points_n = cursor.read_u32::<T>()?;
         for _p in 0..points_n {
-            multiline.add_point(read_point_coordinates::<T, P>(cursor, g_type, srid)?);
+            multiline.add_point(read_point_coordinates::<SRID, T, P>(cursor, g_type)?);
         }
     }
     Ok(multiline)

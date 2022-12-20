@@ -4,11 +4,11 @@ use crate::sql_types::Geometry;
 
 /// Error which may be returned if point cinstructed without required fields or has some unexpected fields for type.
 /// ```
-/// use postgis_diesel::types::{PointT, PointZ, Point, PointConstructorError};
-/// let point = PointZ::new_point(72.0, 63.0, None, None, None);
+/// use postgis_diesel::types::{PointZ, Point, PointConstructorError, PointT};
+/// let point = PointZ::<4326>::new_point(72.0, 63.0, None, None);
 /// assert!(point.is_err());
 /// assert_eq!(Result::Err(PointConstructorError{reason:"Z is not defined, but mandatory for PointZ".to_string()}), point);
-/// let point = Point::new_point(72.0, 63.0, None, Some(10.0), None);
+/// let point= Point::<4326>::new_point(72.0, 63.0, Some(10.0), None);
 /// assert!(point.is_err());
 /// assert_eq!(Result::Err(PointConstructorError{reason:"unexpectedly defined Z Some(10.0) or M None for Point".to_string()}), point);
 /// ```
@@ -32,17 +32,14 @@ impl std::error::Error for PointConstructorError {}
 /// #[derive(Queryable)]
 /// struct QueryablePointExample {
 ///     id: i32,
-///     point: Point,
+///     point: Point<4326>,
 /// }
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Point {
+pub struct Point<const SRID: u32> {
     pub x: f64,
     pub y: f64,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with PointZ geometry.
@@ -52,18 +49,15 @@ pub struct Point {
 /// #[derive(Queryable)]
 /// struct QueryablePointZExample {
 ///     id: i32,
-///     point: PointZ,
+///     point: PointZ<4326>,
 /// }
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PointZ {
+pub struct PointZ<const SRID: u32> {
     pub x: f64,
     pub y: f64,
     pub z: f64,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with PointM geometry.
@@ -73,18 +67,15 @@ pub struct PointZ {
 /// #[derive(Queryable)]
 /// struct QueryablePointMExample {
 ///     id: i32,
-///     point: PointM,
+///     point: PointM<4326>,
 /// }
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PointM {
+pub struct PointM<const SRID: u32> {
     pub x: f64,
     pub y: f64,
     pub m: f64,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with PointZM geometry.
@@ -94,26 +85,22 @@ pub struct PointM {
 /// #[derive(Queryable)]
 /// struct QueryablePointZMExample {
 ///     id: i32,
-///     point: PointZM,
+///     point: PointZM<4326>,
 /// }
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PointZM {
+pub struct PointZM<const SRID: u32> {
     pub x: f64,
     pub y: f64,
     pub z: f64,
     pub m: f64,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
 }
 
-pub trait PointT {
+pub trait PointT<const SRID: u32> {
     fn new_point(
         x: f64,
         y: f64,
-        srid: Option<u32>,
         z: Option<f64>,
         m: Option<f64>,
     ) -> Result<Self, PointConstructorError>
@@ -121,7 +108,6 @@ pub trait PointT {
         Self: Sized;
     fn get_x(&self) -> f64;
     fn get_y(&self) -> f64;
-    fn get_srid(&self) -> Option<u32>;
     fn get_z(&self) -> Option<f64>;
     fn get_m(&self) -> Option<f64>;
     fn dimension(&self) -> u32;
@@ -134,16 +120,13 @@ pub trait PointT {
 /// #[derive(Queryable)]
 /// struct QueryableMultiPointExample {
 ///     id: i32,
-///     multipoint: MultiPoint<Point>,
+///     multipoint: MultiPoint<4326, Point<4326>>,
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct MultiPoint<T> {
+pub struct MultiPoint<const SRID: u32, T: PointT<SRID>> {
     pub points: Vec<T>,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with LineString geometry.
@@ -153,16 +136,13 @@ pub struct MultiPoint<T> {
 /// #[derive(Queryable)]
 /// struct QueryableLineStringExample {
 ///     id: i32,
-///     linestring: LineString<Point>,
+///     linestring: LineString<4326, Point<4326>>,
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LineString<T> {
+pub struct LineString<const SRID: u32, T: PointT<SRID>> {
     pub points: Vec<T>,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with MultiLineString geometry.
@@ -172,16 +152,13 @@ pub struct LineString<T> {
 /// #[derive(Queryable)]
 /// struct QueryableMultiLineStringExample {
 ///     id: i32,
-///     multilinestring: MultiLineString<LineString<Point>>,
+///     multilinestring: MultiLineString<4326, Point<4326>>,
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct MultiLineString<T> {
-    pub lines: Vec<LineString<T>>,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
+pub struct MultiLineString<const SRID: u32, T: PointT<SRID>> {
+    pub lines: Vec<LineString<SRID, T>>,
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with Polygon geometry.
@@ -191,16 +168,13 @@ pub struct MultiLineString<T> {
 /// #[derive(Queryable)]
 /// struct QueryablePolygonExample {
 ///     id: i32,
-///     polygon: Polygon<Point>,
+///     polygon: Polygon<4326, Point<4326>>,
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Polygon<T> {
+pub struct Polygon<const SRID: u32, T: PointT<SRID>> {
     pub rings: Vec<Vec<T>>,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with MultiPolygon geometry.
@@ -210,28 +184,24 @@ pub struct Polygon<T> {
 /// #[derive(Queryable)]
 /// struct QueryableMultiPolygonExample {
 ///     id: i32,
-///     multipolygon: MultiPolygon<Polygon<Point>>,
+///     multipolygon: MultiPolygon<4326,  Point<4326>>,
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct MultiPolygon<T> {
-    pub polygons: Vec<Polygon<T>>,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
+pub struct MultiPolygon<const SRID: u32, T: PointT<SRID>> {
+    pub polygons: Vec<Polygon<SRID, T>>,
 }
 
 #[derive(Clone, Debug, PartialEq, FromSqlRow)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum GeometryContainer<T> {
+pub enum GeometryContainer<const SRID: u32, T: PointT<SRID>> {
     Point(T),
-    LineString(LineString<T>),
-    Polygon(Polygon<T>),
-    MultiPoint(MultiPoint<T>),
-    MultiLineString(MultiLineString<T>),
-    MultiPolygon(MultiPolygon<T>),
-    GeometryCollection(GeometryCollection<T>),
+    LineString(LineString<SRID, T>),
+    Polygon(Polygon<SRID, T>),
+    MultiPoint(MultiPoint<SRID, T>),
+    MultiLineString(MultiLineString<SRID, T>),
+    MultiPolygon(MultiPolygon<SRID, T>),
+    GeometryCollection(GeometryCollection<SRID, T>),
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with GeometryCollection geometry.
@@ -241,31 +211,11 @@ pub enum GeometryContainer<T> {
 /// #[derive(Queryable)]
 /// struct QueryableGeometryCollectionExample {
 ///     id: i32,
-///     geometrycollection: GeometryCollection<GeometryContainer<Point>>,
+///     geometrycollection: GeometryCollection<4326, Point<4326>>,
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct GeometryCollection<T> {
-    pub geometries: Vec<GeometryContainer<T>>,
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub srid: Option<u32>,
-}
-
-#[cfg(test)]
-#[cfg(feature = "serde")]
-mod tests {
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use super::*;
-
-    #[test]
-    fn test_point_serde() {
-        let point = Point::new(72.0, 64.0, None);
-        let expected_point = "{\"x\":72.0,\"y\":64.0}";
-        let point_from_json = serde_json::from_str(expected_point).unwrap();
-        assert_eq!(point, point_from_json);
-        let point_json = serde_json::to_string(&point).unwrap();
-        assert_eq!(expected_point, point_json);
-    }
+pub struct GeometryCollection<const SRID: u32, T: PointT<SRID>> {
+    pub geometries: Vec<GeometryContainer<SRID, T>>,
 }

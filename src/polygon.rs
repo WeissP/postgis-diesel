@@ -1,5 +1,4 @@
-use std::fmt::Debug;
-use std::io::Cursor;
+use std::{fmt::Debug, io::Cursor};
 
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use diesel::{
@@ -10,21 +9,20 @@ use diesel::{
 
 use crate::{
     ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
-    types::{PointT, Polygon},
+    types::{PointT, Polygon}, error::check_srid,
 };
 
-use crate::points::{read_point_coordinates, write_point_coordinates, Dimension};
-use crate::sql_types::*;
+use crate::{
+    points::{read_point_coordinates, write_point_coordinates, Dimension},
+    sql_types::*,
+};
 
-impl<T> Polygon<T>
+impl<const SRID: u32, T> Polygon<SRID, T>
 where
-    T: PointT + Clone,
+    T: PointT<SRID> + Clone,
 {
-    pub fn new(srid: Option<u32>) -> Self {
-        Polygon {
-            rings: Vec::new(),
-            srid: srid,
-        }
+    pub fn new() -> Self {
+        Polygon { rings: Vec::new() }
     }
 
     pub fn add_ring<'a>(&'a mut self) -> &mut Self {
@@ -62,33 +60,32 @@ where
     }
 }
 
-impl<T> EwkbSerializable for Polygon<T>
+impl<const SRID: u32, T> EwkbSerializable for Polygon<SRID, T>
 where
-    T: PointT + Clone,
+    T: PointT<SRID> + Clone,
 {
     fn geometry_type(&self) -> u32 {
         GeometryType::Polygon as u32 | self.dimension()
     }
 }
 
-impl<T> ToSql<Geometry, Pg> for Polygon<T>
+impl<const SRID: u32, T> ToSql<Geometry, Pg> for Polygon<SRID, T>
 where
-    T: PointT + Debug + PartialEq + Clone + EwkbSerializable,
+    T: PointT<SRID> + Debug + PartialEq + Clone + EwkbSerializable,
 {
     fn to_sql(&self, out: &mut Output<Pg>) -> serialize::Result {
-        write_polygon(self, self.srid, out)
+        write_polygon(self, out)
     }
 }
 
-pub fn write_polygon<T>(
-    polygon: &Polygon<T>,
-    srid: Option<u32>,
+pub fn write_polygon<const SRID: u32, T>(
+    polygon: &Polygon<SRID, T>,
     out: &mut Output<Pg>,
 ) -> serialize::Result
 where
-    T: PointT + EwkbSerializable + Clone,
+    T: PointT<SRID> + EwkbSerializable + Clone,
 {
-    write_ewkb_header(polygon, srid, out)?;
+    write_ewkb_header(polygon, Some(SRID), out)?;
     // number of rings
     out.write_u32::<LittleEndian>(polygon.rings.len() as u32)?;
     for ring in polygon.rings.iter() {
@@ -101,46 +98,46 @@ where
     Ok(IsNull::No)
 }
 
-impl<T> FromSql<Geometry, Pg> for Polygon<T>
+impl<const SRID: u32, T> FromSql<Geometry, Pg> for Polygon<SRID, T>
 where
-    T: PointT + Debug + Clone,
+    T: PointT<SRID> + Debug + Clone,
 {
     fn from_sql(bytes: pg::PgValue) -> deserialize::Result<Self> {
         let mut r = Cursor::new(bytes.as_bytes());
         let end = r.read_u8()?;
         if end == BIG_ENDIAN {
-            read_polygon::<BigEndian, T>(&mut r)
+            read_polygon::<SRID, BigEndian, T>(&mut r)
         } else {
-            read_polygon::<LittleEndian, T>(&mut r)
+            read_polygon::<SRID, LittleEndian, T>(&mut r)
         }
     }
 }
 
-fn read_polygon<T, P>(cursor: &mut Cursor<&[u8]>) -> deserialize::Result<Polygon<P>>
+fn read_polygon<const SRID: u32, T, P>(cursor: &mut Cursor<&[u8]>) -> deserialize::Result<Polygon<SRID, P>>
 where
     T: byteorder::ByteOrder,
-    P: PointT + Clone,
+    P: PointT<SRID> + Clone,
 {
     let g_header = read_ewkb_header::<T>(GeometryType::Polygon, cursor)?;
-    read_polygon_body::<T, P>(g_header.g_type, g_header.srid, cursor)
+    check_srid(g_header.srid, SRID)?;
+    read_polygon_body::<SRID, T, P>(g_header.g_type, cursor)
 }
 
-pub fn read_polygon_body<T, P>(
+pub fn read_polygon_body<const SRID: u32, T, P>(
     g_type: u32,
-    srid: Option<u32>,
     cursor: &mut Cursor<&[u8]>,
-) -> deserialize::Result<Polygon<P>>
+) -> deserialize::Result<Polygon<SRID, P>>
 where
     T: byteorder::ByteOrder,
-    P: PointT + Clone,
+    P: PointT<SRID> + Clone,
 {
     let rings_n = cursor.read_u32::<T>()?;
-    let mut polygon = Polygon::new(srid);
+    let mut polygon = Polygon::new();
     for _i in 0..rings_n {
         polygon.add_ring();
         let points_n = cursor.read_u32::<T>()?;
         for _p in 0..points_n {
-            polygon.add_point(read_point_coordinates::<T, P>(cursor, g_type, srid)?);
+            polygon.add_point(read_point_coordinates::<SRID, T, P>(cursor, g_type)?);
         }
     }
     Ok(polygon)
