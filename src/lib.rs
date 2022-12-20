@@ -1,8 +1,5 @@
 #[macro_use]
 extern crate diesel;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde;
 
 mod ewkb;
 mod geometrycollection;
@@ -14,4 +11,6 @@ pub mod operators;
 mod points;
 mod polygon;
 pub mod sql_types;
+pub mod error;
 pub mod types;
+pub mod gps;

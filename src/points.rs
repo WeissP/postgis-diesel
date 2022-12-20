@@ -1,6 +1,7 @@
 use std::io::Cursor;
 
 use crate::{
+    error::check_srid,
     ewkb::{read_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
     types::*,
 };
@@ -20,65 +21,61 @@ pub enum Dimension {
     ZM = 0x40000000 | 0x80000000,
 }
 
-impl EwkbSerializable for Point {
+impl<const SRID: u32> EwkbSerializable for Point<SRID> {
     fn geometry_type(&self) -> u32 {
         GeometryType::Point as u32
     }
 }
 
-impl EwkbSerializable for PointZ {
+impl<const SRID: u32> EwkbSerializable for PointZ<SRID> {
     fn geometry_type(&self) -> u32 {
         GeometryType::Point as u32 | Dimension::Z as u32
     }
 }
 
-impl EwkbSerializable for PointM {
+impl<const SRID: u32> EwkbSerializable for PointM<SRID> {
     fn geometry_type(&self) -> u32 {
         GeometryType::Point as u32 | Dimension::M as u32
     }
 }
 
-impl EwkbSerializable for PointZM {
+impl<const SRID: u32> EwkbSerializable for PointZM<SRID> {
     fn geometry_type(&self) -> u32 {
         GeometryType::Point as u32 | Dimension::ZM as u32
     }
 }
 
-impl Point {
-    pub fn new(x: f64, y: f64, srid: Option<u32>) -> Self {
-        Self { x, y, srid }
+impl<const SRID: u32> Point<SRID> {
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
     }
 }
 
-impl PointZ {
-    pub fn new(x: f64, y: f64, z: f64, srid: Option<u32>) -> Self {
-        Self { x, y, z, srid }
+impl<const SRID: u32> PointZ<SRID> {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
     }
 }
 
-impl PointM {
-    pub fn new(x: f64, y: f64, m: f64, srid: Option<u32>) -> Self {
-        Self { x, y, m, srid }
+impl<const SRID: u32> PointM<SRID> {
+    pub fn new(x: f64, y: f64, m: f64) -> Self {
+        Self { x, y, m }
     }
 }
 
-impl PointZM {
-    pub fn new(x: f64, y: f64, z: f64, m: f64, srid: Option<u32>) -> Self {
-        Self { x, y, z, m, srid }
+impl<const SRID: u32> PointZM<SRID> {
+    pub fn new(x: f64, y: f64, z: f64, m: f64) -> Self {
+        Self { x, y, z, m }
     }
 }
 
-impl PointT for Point {
+impl<const SRID: u32> PointT<SRID> for Point<SRID> {
     fn get_x(&self) -> f64 {
         self.x
     }
 
     fn get_y(&self) -> f64 {
         self.y
-    }
-
-    fn get_srid(&self) -> Option<u32> {
-        self.srid
     }
 
     fn get_z(&self) -> Option<f64> {
@@ -96,7 +93,6 @@ impl PointT for Point {
     fn new_point(
         x: f64,
         y: f64,
-        srid: Option<u32>,
         z: Option<f64>,
         m: Option<f64>,
     ) -> Result<Self, PointConstructorError> {
@@ -106,21 +102,17 @@ impl PointT for Point {
                     .to_string(),
             });
         }
-        Ok(Point { x, y, srid })
+        Ok(Point { x, y })
     }
 }
 
-impl PointT for PointZ {
+impl<const SRID: u32> PointT<SRID> for PointZ<SRID> {
     fn get_x(&self) -> f64 {
         self.x
     }
 
     fn get_y(&self) -> f64 {
         self.y
-    }
-
-    fn get_srid(&self) -> Option<u32> {
-        self.srid
     }
 
     fn get_z(&self) -> Option<f64> {
@@ -138,7 +130,6 @@ impl PointT for PointZ {
     fn new_point(
         x: f64,
         y: f64,
-        srid: Option<u32>,
         z: Option<f64>,
         m: Option<f64>,
     ) -> Result<Self, PointConstructorError> {
@@ -156,22 +147,17 @@ impl PointT for PointZ {
             x,
             y,
             z: z.unwrap(),
-            srid,
         })
     }
 }
 
-impl PointT for PointM {
+impl<const SRID: u32> PointT<SRID> for PointM<SRID> {
     fn get_x(&self) -> f64 {
         self.x
     }
 
     fn get_y(&self) -> f64 {
         self.y
-    }
-
-    fn get_srid(&self) -> Option<u32> {
-        self.srid
     }
 
     fn get_z(&self) -> Option<f64> {
@@ -189,7 +175,6 @@ impl PointT for PointM {
     fn new_point(
         x: f64,
         y: f64,
-        srid: Option<u32>,
         z: Option<f64>,
         m: Option<f64>,
     ) -> Result<Self, PointConstructorError> {
@@ -207,22 +192,17 @@ impl PointT for PointM {
             x,
             y,
             m: m.unwrap(),
-            srid,
         })
     }
 }
 
-impl PointT for PointZM {
+impl<const SRID: u32> PointT<SRID> for PointZM<SRID> {
     fn get_x(&self) -> f64 {
         self.x
     }
 
     fn get_y(&self) -> f64 {
         self.y
-    }
-
-    fn get_srid(&self) -> Option<u32> {
-        self.srid
     }
 
     fn get_z(&self) -> Option<f64> {
@@ -240,7 +220,6 @@ impl PointT for PointZM {
     fn new_point(
         x: f64,
         y: f64,
-        srid: Option<u32>,
         z: Option<f64>,
         m: Option<f64>,
     ) -> Result<Self, PointConstructorError> {
@@ -259,21 +238,20 @@ impl PointT for PointZM {
             y,
             z: z.unwrap(),
             m: m.unwrap(),
-            srid,
         })
     }
 }
 
 macro_rules! impl_point_from_sql {
     ($p:ident) => {
-        impl FromSql<Geometry, Pg> for $p {
+        impl<const SRID: u32> FromSql<Geometry, Pg> for $p<SRID> {
             fn from_sql(bytes: pg::PgValue) -> deserialize::Result<Self> {
                 let mut r = Cursor::new(bytes.as_bytes());
                 let end = r.read_u8()?;
                 if end == BIG_ENDIAN {
-                    read_point::<BigEndian, $p>(&mut r)
+                    read_point::<SRID, BigEndian, $p<SRID>>(&mut r)
                 } else {
-                    read_point::<LittleEndian, $p>(&mut r)
+                    read_point::<SRID, LittleEndian, $p<SRID>>(&mut r)
                 }
             }
         }
@@ -285,46 +263,49 @@ impl_point_from_sql!(PointZ);
 impl_point_from_sql!(PointM);
 impl_point_from_sql!(PointZM);
 
-impl ToSql<Geometry, Pg> for Point {
+impl<const SRID: u32> ToSql<Geometry, Pg> for Point<SRID> {
     fn to_sql(&self, out: &mut Output<Pg>) -> serialize::Result {
-        write_point(self, self.get_srid(), out)?;
+        write_point(self, out)?;
         Ok(IsNull::No)
     }
 }
 
-impl ToSql<Geometry, Pg> for PointZ {
+impl<const SRID: u32> ToSql<Geometry, Pg> for PointZ<SRID> {
     fn to_sql(&self, out: &mut Output<Pg>) -> serialize::Result {
-        write_point(self, self.get_srid(), out)?;
+        write_point(self, out)?;
         Ok(IsNull::No)
     }
 }
 
-impl ToSql<Geometry, Pg> for PointM {
+impl<const SRID: u32> ToSql<Geometry, Pg> for PointM<SRID> {
     fn to_sql(&self, out: &mut Output<Pg>) -> serialize::Result {
-        write_point(self, self.get_srid(), out)?;
+        write_point(self, out)?;
         Ok(IsNull::No)
     }
 }
 
-impl ToSql<Geometry, Pg> for PointZM {
+impl<const SRID: u32> ToSql<Geometry, Pg> for PointZM<SRID> {
     fn to_sql(&self, out: &mut Output<Pg>) -> serialize::Result {
-        write_point(self, self.get_srid(), out)?;
+        write_point(self, out)?;
         Ok(IsNull::No)
     }
 }
 
-pub fn write_point<T>(point: &T, srid: Option<u32>, out: &mut Output<Pg>) -> serialize::Result
+pub fn write_point<const SRID: u32, T>(point: &T, out: &mut Output<Pg>) -> serialize::Result
 where
-    T: PointT + EwkbSerializable,
+    T: PointT<SRID> + EwkbSerializable,
 {
-    write_ewkb_header(point, srid, out)?;
+    write_ewkb_header(point, Some(SRID), out)?;
     write_point_coordinates(point, out)?;
     Ok(IsNull::No)
 }
 
-pub fn write_point_coordinates<T>(point: &T, out: &mut Output<Pg>) -> serialize::Result
+pub fn write_point_coordinates<const SRID: u32, T>(
+    point: &T,
+    out: &mut Output<Pg>,
+) -> serialize::Result
 where
-    T: PointT,
+    T: PointT<SRID>,
 {
     out.write_f64::<LittleEndian>(point.get_x())?;
     out.write_f64::<LittleEndian>(point.get_y())?;
@@ -337,23 +318,23 @@ where
     Ok(IsNull::No)
 }
 
-fn read_point<T, P>(cursor: &mut Cursor<&[u8]>) -> deserialize::Result<P>
+fn read_point<const SRID: u32, T, P>(cursor: &mut Cursor<&[u8]>) -> deserialize::Result<P>
 where
     T: byteorder::ByteOrder,
-    P: PointT,
+    P: PointT<SRID>,
 {
     let g_header = read_ewkb_header::<T>(GeometryType::Point, cursor)?;
-    read_point_coordinates::<T, P>(cursor, g_header.g_type, g_header.srid)
+    check_srid(g_header.srid, SRID)?;
+    read_point_coordinates::<SRID, T, P>(cursor, g_header.g_type)
 }
 
-pub fn read_point_coordinates<T, P>(
+pub fn read_point_coordinates<const SRID: u32, T, P>(
     cursor: &mut Cursor<&[u8]>,
     g_type: u32,
-    srid: Option<u32>,
 ) -> deserialize::Result<P>
 where
     T: byteorder::ByteOrder,
-    P: PointT,
+    P: PointT<SRID>,
 {
     let x = cursor.read_f64::<T>()?;
     let y = cursor.read_f64::<T>()?;
@@ -365,5 +346,5 @@ where
     if g_type & Dimension::M as u32 == Dimension::M as u32 {
         m = Some(cursor.read_f64::<T>()?);
     }
-    Ok(P::new_point(x, y, srid, z, m)?)
+    Ok(P::new_point(x, y, z, m)?)
 }
