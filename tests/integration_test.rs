@@ -268,6 +268,26 @@ fn srid_test() -> () {
 }
 
 #[test]
+fn from_iter_test() -> () {
+    use gps::*;
+    let gen_points = || vec![Point::new(1., 0.), Point::new(0., 1.)];
+    let multi_p: MultiPoint = gen_points().into_iter().collect();
+    assert_eq!(multi_p.points, gen_points());
+
+    let ls: LineString = gen_points().into_iter().collect();
+    assert_eq!(ls.points, gen_points());
+
+    let multi_ls : MultiLineString = vec![ls.clone()].into_iter().collect();
+    assert_eq!(multi_ls.lines, vec![ls]);
+
+    let poly : Polygon = vec![gen_points()].into_iter().collect();
+    assert_eq!(poly.rings, vec![gen_points()]);
+
+    let multi_poly : MultiPolygon = vec![poly.clone()].into_iter().collect();
+    assert_eq!(multi_poly.polygons, vec![poly]);
+}
+
+#[test]
 fn smoke_test() {
     let mut conn = initialize();
     let mut polygon = Polygon::new();
