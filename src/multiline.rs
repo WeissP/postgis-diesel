@@ -1,4 +1,4 @@
-use std::{fmt::Debug, io::Cursor};
+use std::{fmt::Debug, io::Cursor, iter::FromIterator};
 
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use diesel::{
@@ -15,6 +15,13 @@ use crate::{
 };
 
 use crate::{points::read_point_coordinates, sql_types::*};
+
+impl<const SRID: u32, P: PointT<SRID>> FromIterator<LineString<SRID, P>> for MultiLineString<SRID, P> {
+    fn from_iter<T: IntoIterator<Item = LineString<SRID, P>>>(iter: T) -> Self {
+        let lines = iter.into_iter().collect();
+        Self { lines }
+    }
+}
 
 impl<const SRID: u32, T> MultiLineString<SRID, T>
 where

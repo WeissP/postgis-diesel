@@ -1,4 +1,4 @@
-use std::{fmt::Debug, io::Cursor};
+use std::{fmt::Debug, io::Cursor, iter::FromIterator};
 
 use crate::{
     error::check_srid,
@@ -14,6 +14,13 @@ use diesel::{
 };
 
 use crate::{points::read_point_coordinates, sql_types::*};
+
+impl<const SRID: u32, P: PointT<SRID>> FromIterator<P> for MultiPoint<SRID, P> {
+    fn from_iter<T: IntoIterator<Item = P>>(iter: T) -> Self {
+        let points = iter.into_iter().collect();
+        Self { points }
+    }
+}
 
 impl<const SRID: u32, T> MultiPoint<SRID, T>
 where

@@ -1,10 +1,11 @@
-use std::{fmt::Debug, io::Cursor};
+use std::{fmt::Debug, io::Cursor, iter::FromIterator};
 
 use crate::{
+    error::check_srid,
     ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
     points::Dimension,
     polygon::{read_polygon_body, write_polygon},
-    types::*, error::check_srid,
+    types::*,
 };
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use diesel::{
@@ -14,6 +15,13 @@ use diesel::{
 };
 
 use crate::sql_types::*;
+
+impl<const SRID: u32, P: PointT<SRID>> FromIterator<Polygon<SRID, P>> for MultiPolygon<SRID, P> {
+    fn from_iter<T: IntoIterator<Item = Polygon<SRID, P>>>(iter: T) -> Self {
+        let polygons = iter.into_iter().collect();
+        Self { polygons }
+    }
+}
 
 impl<const SRID: u32, T> MultiPolygon<SRID, T>
 where
@@ -26,9 +34,7 @@ where
     }
 
     pub fn add_empty_polygon<'a>(&'a mut self) -> &mut Self {
-        self.polygons.push(Polygon {
-            rings: Vec::new(),
-        });
+        self.polygons.push(Polygon { rings: Vec::new() });
         self
     }
 

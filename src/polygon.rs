@@ -1,4 +1,4 @@
-use std::{fmt::Debug, io::Cursor};
+use std::{fmt::Debug, io::Cursor, iter::FromIterator};
 
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use diesel::{
@@ -16,6 +16,13 @@ use crate::{
     points::{read_point_coordinates, write_point_coordinates, Dimension},
     sql_types::*,
 };
+
+impl<const SRID: u32, P: PointT<SRID>> FromIterator<Vec<P>> for Polygon<SRID, P> {
+    fn from_iter<T: IntoIterator<Item = Vec<P>>>(iter: T) -> Self {
+        let rings = iter.into_iter().collect();
+        Self { rings }
+    }
+}
 
 impl<const SRID: u32, T> Polygon<SRID, T>
 where
