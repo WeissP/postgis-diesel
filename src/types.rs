@@ -219,3 +219,26 @@ pub enum GeometryContainer<const SRID: u32, T: PointT<SRID>> {
 pub struct GeometryCollection<const SRID: u32, T: PointT<SRID>> {
     pub geometries: Vec<GeometryContainer<SRID, T>>,
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn from_iter_test() -> () {
+        use crate::gps::*;
+        let gen_points = || vec![Point::new(1., 0.), Point::new(0., 1.)];
+        let multi_p: MultiPoint = gen_points().into_iter().collect();
+        assert_eq!(multi_p.points, gen_points());
+
+        let ls: LineString = gen_points().into_iter().collect();
+        assert_eq!(ls.points, gen_points());
+
+        let multi_ls: MultiLineString = vec![ls.clone()].into_iter().collect();
+        assert_eq!(multi_ls.lines, vec![ls]);
+
+        let poly: Polygon = vec![gen_points()].into_iter().collect();
+        assert_eq!(poly.rings, vec![gen_points()]);
+
+        let multi_poly: MultiPolygon = vec![poly.clone()].into_iter().collect();
+        assert_eq!(multi_poly.polygons, vec![poly]);
+    }
+}
