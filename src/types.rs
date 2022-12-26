@@ -125,7 +125,7 @@ pub trait PointT<const SRID: u32> {
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-pub struct MultiPoint<const SRID: u32, T: PointT<SRID>> {
+pub struct MultiPoint<const SRID: u32, T> {
     pub points: Vec<T>,
 }
 
@@ -141,7 +141,7 @@ pub struct MultiPoint<const SRID: u32, T: PointT<SRID>> {
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-pub struct LineString<const SRID: u32, T: PointT<SRID>> {
+pub struct LineString<const SRID: u32, T> {
     pub points: Vec<T>,
 }
 
@@ -157,7 +157,7 @@ pub struct LineString<const SRID: u32, T: PointT<SRID>> {
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-pub struct MultiLineString<const SRID: u32, T: PointT<SRID>> {
+pub struct MultiLineString<const SRID: u32, T> {
     pub lines: Vec<LineString<SRID, T>>,
 }
 
@@ -173,7 +173,7 @@ pub struct MultiLineString<const SRID: u32, T: PointT<SRID>> {
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-pub struct Polygon<const SRID: u32, T: PointT<SRID>> {
+pub struct Polygon<const SRID: u32, T> {
     pub rings: Vec<Vec<T>>,
 }
 
@@ -189,12 +189,12 @@ pub struct Polygon<const SRID: u32, T: PointT<SRID>> {
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-pub struct MultiPolygon<const SRID: u32, T: PointT<SRID>> {
+pub struct MultiPolygon<const SRID: u32, T> {
     pub polygons: Vec<Polygon<SRID, T>>,
 }
 
 #[derive(Clone, Debug, PartialEq, FromSqlRow)]
-pub enum GeometryContainer<const SRID: u32, T: PointT<SRID>> {
+pub enum GeometryContainer<const SRID: u32, T> {
     Point(T),
     LineString(LineString<SRID, T>),
     Polygon(Polygon<SRID, T>),
@@ -216,7 +216,7 @@ pub enum GeometryContainer<const SRID: u32, T: PointT<SRID>> {
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-pub struct GeometryCollection<const SRID: u32, T: PointT<SRID>> {
+pub struct GeometryCollection<const SRID: u32, T> {
     pub geometries: Vec<GeometryContainer<SRID, T>>,
 }
 
