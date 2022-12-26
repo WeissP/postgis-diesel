@@ -1,27 +1,29 @@
 use crate::types;
 
-pub type MultiPointC<Pt> = types::MultiPoint<4326, Pt>;
-pub type LineStringC<Pt> = types::LineString<4326, Pt>;
-pub type MultiLineStringC<Pt> = types::MultiLineString<4326, Pt>;
-pub type PolygonC<Pt> = types::Polygon<4326, Pt>;
-pub type MultiPolygonC<Pt> = types::MultiPolygon<4326, Pt>;
-pub type GeometryContainerC<Pt> = types::GeometryContainer<4326, Pt>;
-pub type GeometryCollectionC<Pt> = types::GeometryCollection<4326, Pt>;
+pub const SRID: u32 = 4326;
 
-pub type Point = types::Point<4326>;
-pub type MultiPoint = types::MultiPoint<4326, Point>;
-pub type LineString = types::LineString<4326, Point>;
-pub type MultiLineString = types::MultiLineString<4326, Point>;
-pub type Polygon = types::Polygon<4326, Point>;
-pub type MultiPolygon = types::MultiPolygon<4326, Point>;
-pub type GeometryContainer = types::GeometryContainer<4326, Point>;
-pub type GeometryCollection = types::GeometryCollection<4326, Point>;
+pub type MultiPointC<Pt> = types::MultiPoint<SRID, Pt>;
+pub type LineStringC<Pt> = types::LineString<SRID, Pt>;
+pub type MultiLineStringC<Pt> = types::MultiLineString<SRID, Pt>;
+pub type PolygonC<Pt> = types::Polygon<SRID, Pt>;
+pub type MultiPolygonC<Pt> = types::MultiPolygon<SRID, Pt>;
+pub type GeometryContainerC<Pt> = types::GeometryContainer<SRID, Pt>;
+pub type GeometryCollectionC<Pt> = types::GeometryCollection<SRID, Pt>;
 
-pub type PointZ = types::PointZ<4326>;
-pub type MultiPointZ = types::MultiPoint<4326, PointZ>;
-pub type LineStringZ = types::LineString<4326, PointZ>;
-pub type MultiLineStringZ = types::MultiLineString<4326, PointZ>;
-pub type PolygonZ = types::Polygon<4326, PointZ>;
-pub type MultiPolygonZ = types::MultiPolygon<4326, PointZ>;
-pub type GeometryContainerZ = types::GeometryContainer<4326, PointZ>;
-pub type GeometryCollectionZ = types::GeometryCollection<4326, PointZ>;
+pub type Point = types::Point<SRID>;
+pub type MultiPoint = types::MultiPoint<SRID, Point>;
+pub type LineString = types::LineString<SRID, Point>;
+pub type MultiLineString = types::MultiLineString<SRID, Point>;
+pub type Polygon = types::Polygon<SRID, Point>;
+pub type MultiPolygon = types::MultiPolygon<SRID, Point>;
+pub type GeometryContainer = types::GeometryContainer<SRID, Point>;
+pub type GeometryCollection = types::GeometryCollection<SRID, Point>;
+
+pub type PointZ = types::PointZ<SRID>;
+pub type MultiPointZ = types::MultiPoint<SRID, PointZ>;
+pub type LineStringZ = types::LineString<SRID, PointZ>;
+pub type MultiLineStringZ = types::MultiLineString<SRID, PointZ>;
+pub type PolygonZ = types::Polygon<SRID, PointZ>;
+pub type MultiPolygonZ = types::MultiPolygon<SRID, PointZ>;
+pub type GeometryContainerZ = types::GeometryContainer<SRID, PointZ>;
+pub type GeometryCollectionZ = types::GeometryCollection<SRID, PointZ>;

@@ -1,12 +1,3 @@
-use std::{fmt::Debug, io::Cursor, iter::FromIterator};
-
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
-use diesel::{
-    deserialize::{self, FromSql},
-    pg::{self, Pg},
-    serialize::{self, IsNull, Output, ToSql},
-};
-
 use crate::{
     error::check_srid,
     ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
@@ -14,6 +5,13 @@ use crate::{
     sql_types::*,
     types::{LineString, PointT},
 };
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
+use diesel::{
+    deserialize::{self, FromSql},
+    pg::{self, Pg},
+    serialize::{self, IsNull, Output, ToSql},
+};
+use std::{fmt::Debug, io::Cursor, iter::FromIterator};
 
 impl<const SRID: u32, P: PointT<SRID>> FromIterator<P> for LineString<SRID, P> {
     fn from_iter<T: IntoIterator<Item = P>>(iter: T) -> Self {
