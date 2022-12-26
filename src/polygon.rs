@@ -1,24 +1,28 @@
-use std::{fmt::Debug, io::Cursor, iter::FromIterator};
-
+use crate::{
+    error::check_srid,
+    ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
+    points::{read_point_coordinates, write_point_coordinates, Dimension},
+    sql_types::*,
+    types::{LineString, PointT, Polygon},
+};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use diesel::{
     deserialize::{self, FromSql},
     pg::{self, Pg},
     serialize::{self, IsNull, Output, ToSql},
 };
+use std::{fmt::Debug, io::Cursor, iter::FromIterator};
 
-use crate::{
-    ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
-    types::{PointT, Polygon}, error::check_srid,
-};
+impl<const SRID: u32, P: PointT<SRID>> Default for Polygon<SRID, P> {
+    fn default() -> Self {
+        Self {
+            rings: vec![LineString::default()],
+        }
+    }
+}
 
-use crate::{
-    points::{read_point_coordinates, write_point_coordinates, Dimension},
-    sql_types::*,
-};
-
-impl<const SRID: u32, P: PointT<SRID>> FromIterator<Vec<P>> for Polygon<SRID, P> {
-    fn from_iter<T: IntoIterator<Item = Vec<P>>>(iter: T) -> Self {
+impl<const SRID: u32, P: PointT<SRID>> FromIterator<LineString<SRID, P>> for Polygon<SRID, P> {
+    fn from_iter<T: IntoIterator<Item = LineString<SRID, P>>>(iter: T) -> Self {
         let rings = iter.into_iter().collect();
         Self { rings }
     }
@@ -33,7 +37,7 @@ where
     }
 
     pub fn add_ring<'a>(&'a mut self) -> &mut Self {
-        self.rings.push(Vec::new());
+        self.rings.push(LineString::default());
         self
     }
 
@@ -41,7 +45,7 @@ where
         if self.rings.last().is_none() {
             self.add_ring();
         }
-        self.rings.last_mut().unwrap().push(point);
+        self.rings.last_mut().unwrap().points.push(point);
         self
     }
 
@@ -51,7 +55,7 @@ where
         }
         let last = self.rings.last_mut().unwrap();
         for point in points {
-            last.push(point.to_owned());
+            last.points.push(point.to_owned());
         }
         self
     }
@@ -59,7 +63,7 @@ where
     pub fn dimension(&self) -> u32 {
         let mut dimension = Dimension::None as u32;
         if let Some(ring) = self.rings.first() {
-            if let Some(point) = ring.first() {
+            if let Some(point) = ring.points.first() {
                 dimension |= point.dimension();
             }
         }
@@ -97,8 +101,8 @@ where
     out.write_u32::<LittleEndian>(polygon.rings.len() as u32)?;
     for ring in polygon.rings.iter() {
         //number of points in ring
-        out.write_u32::<LittleEndian>(ring.len() as u32)?;
-        for point in ring.iter() {
+        out.write_u32::<LittleEndian>(ring.points.len() as u32)?;
+        for point in ring.points.iter() {
             write_point_coordinates(point, out)?;
         }
     }
@@ -120,7 +124,9 @@ where
     }
 }
 
-fn read_polygon<const SRID: u32, T, P>(cursor: &mut Cursor<&[u8]>) -> deserialize::Result<Polygon<SRID, P>>
+fn read_polygon<const SRID: u32, T, P>(
+    cursor: &mut Cursor<&[u8]>,
+) -> deserialize::Result<Polygon<SRID, P>>
 where
     T: byteorder::ByteOrder,
     P: PointT<SRID> + Clone,

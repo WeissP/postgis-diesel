@@ -157,7 +157,7 @@ impl<const SRID: u32, P: PointT<SRID> + FromTuple + Copy> NewGeometrySampleG<SRI
         };
         let points: Vec<_> = points_iter().collect();
         let linestring = || points_iter().collect();
-        let polygon = || vec![&points].into_iter().cloned().collect();
+        let polygon = || vec![linestring()].into_iter().collect();
         let mut res = NewGeometrySampleG {
             name: name.to_string(),
             point: points[0],
