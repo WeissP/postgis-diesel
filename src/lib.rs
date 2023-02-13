@@ -3,6 +3,7 @@ extern crate diesel;
 
 mod ewkb;
 mod geometrycollection;
+mod geometry_container;
 mod linestring;
 mod multiline;
 mod multipoint;

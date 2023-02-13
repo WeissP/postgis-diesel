@@ -35,7 +35,7 @@ impl std::error::Error for PointConstructorError {}
 ///     point: Point<4326>,
 /// }
 /// ```
-#[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
 pub struct Point<const SRID: u32> {
     pub x: f64,
@@ -52,7 +52,7 @@ pub struct Point<const SRID: u32> {
 ///     point: PointZ<4326>,
 /// }
 /// ```
-#[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
 pub struct PointZ<const SRID: u32> {
     pub x: f64,
@@ -70,7 +70,7 @@ pub struct PointZ<const SRID: u32> {
 ///     point: PointM<4326>,
 /// }
 /// ```
-#[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
 pub struct PointM<const SRID: u32> {
     pub x: f64,
@@ -88,7 +88,7 @@ pub struct PointM<const SRID: u32> {
 ///     point: PointZM<4326>,
 /// }
 /// ```
-#[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Copy, Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
 pub struct PointZM<const SRID: u32> {
     pub x: f64,
@@ -97,7 +97,7 @@ pub struct PointZM<const SRID: u32> {
     pub m: f64,
 }
 
-pub trait PointT<const SRID: u32> {
+pub trait PointT<const SRID: u32>: Default {
     fn new_point(
         x: f64,
         y: f64,
@@ -123,9 +123,9 @@ pub trait PointT<const SRID: u32> {
 ///     multipoint: MultiPoint<4326, Point<4326>>,
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
-pub struct MultiPoint<const SRID: u32, T: PointT<SRID>> {
+pub struct MultiPoint<const SRID: u32, T> {
     pub points: Vec<T>,
 }
 
@@ -139,9 +139,9 @@ pub struct MultiPoint<const SRID: u32, T: PointT<SRID>> {
 ///     linestring: LineString<4326, Point<4326>>,
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
-pub struct LineString<const SRID: u32, T: PointT<SRID>> {
+pub struct LineString<const SRID: u32, T> {
     pub points: Vec<T>,
 }
 
@@ -155,9 +155,9 @@ pub struct LineString<const SRID: u32, T: PointT<SRID>> {
 ///     multilinestring: MultiLineString<4326, Point<4326>>,
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
-pub struct MultiLineString<const SRID: u32, T: PointT<SRID>> {
+pub struct MultiLineString<const SRID: u32, T> {
     pub lines: Vec<LineString<SRID, T>>,
 }
 
@@ -173,8 +173,8 @@ pub struct MultiLineString<const SRID: u32, T: PointT<SRID>> {
 /// ```
 #[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Geometry)]
-pub struct Polygon<const SRID: u32, T: PointT<SRID>> {
-    pub rings: Vec<Vec<T>>,
+pub struct Polygon<const SRID: u32, T> {
+    pub rings: Vec<LineString<SRID, T>>,
 }
 
 /// Use that structure in `Insertable` or `Queryable` struct if you work with MultiPolygon geometry.
@@ -187,14 +187,14 @@ pub struct Polygon<const SRID: u32, T: PointT<SRID>> {
 ///     multipolygon: MultiPolygon<4326,  Point<4326>>,
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
-pub struct MultiPolygon<const SRID: u32, T: PointT<SRID>> {
+pub struct MultiPolygon<const SRID: u32, T> {
     pub polygons: Vec<Polygon<SRID, T>>,
 }
 
 #[derive(Clone, Debug, PartialEq, FromSqlRow)]
-pub enum GeometryContainer<const SRID: u32, T: PointT<SRID>> {
+pub enum GeometryContainer<const SRID: u32, T> {
     Point(T),
     LineString(LineString<SRID, T>),
     Polygon(Polygon<SRID, T>),
@@ -214,8 +214,31 @@ pub enum GeometryContainer<const SRID: u32, T: PointT<SRID>> {
 ///     geometrycollection: GeometryCollection<4326, Point<4326>>,
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Clone, Debug, PartialEq, FromSqlRow, AsExpression, Default)]
 #[diesel(sql_type = Geometry)]
-pub struct GeometryCollection<const SRID: u32, T: PointT<SRID>> {
+pub struct GeometryCollection<const SRID: u32, T> {
     pub geometries: Vec<GeometryContainer<SRID, T>>,
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn from_iter_test() -> () {
+        use crate::gps::*;
+        let gen_points = || vec![Point::new(1., 0.), Point::new(0., 1.)];
+        let multi_p: MultiPoint = gen_points().into_iter().collect();
+        assert_eq!(multi_p.points, gen_points());
+
+        let ls: LineString = gen_points().into_iter().collect();
+        assert_eq!(ls.points, gen_points());
+
+        let multi_ls: MultiLineString = vec![ls.clone()].into_iter().collect();
+        assert_eq!(multi_ls.lines, vec![ls.clone()]);
+
+        let poly: Polygon = vec![ls.clone()].into_iter().collect();
+        assert_eq!(poly.rings, vec![ls.clone()]);
+
+        let multi_poly: MultiPolygon = vec![poly.clone()].into_iter().collect();
+        assert_eq!(multi_poly.polygons, vec![poly]);
+    }
 }

@@ -3,12 +3,9 @@ use std::{fmt::Debug, io::Cursor};
 use crate::{
     error::check_srid,
     ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
-    linestring::{read_linestring_body, write_linestring},
-    multiline::{read_multiline_body, write_multiline},
-    multipoint::{read_multi_point_body, write_multi_point},
-    multipolygon::{read_multi_polygon_body, write_multi_polygon},
-    points::{read_point_coordinates, write_point, Dimension},
-    polygon::*,
+    geometry_container::{read_geometry_container, write_geometry_container},
+    points::Dimension,
+    sql_types::*,
     types::*,
 };
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -17,25 +14,6 @@ use diesel::{
     pg::{self, Pg},
     serialize::{self, IsNull, Output, ToSql},
 };
-
-use crate::sql_types::*;
-
-impl<const SRID: u32, T> GeometryContainer<SRID, T>
-where
-    T: PointT<SRID> + Clone,
-{
-    pub fn dimension(&self) -> u32 {
-        match self {
-            GeometryContainer::Point(g) => g.dimension(),
-            GeometryContainer::LineString(g) => g.dimension(),
-            GeometryContainer::Polygon(g) => g.dimension(),
-            GeometryContainer::MultiPoint(g) => g.dimension(),
-            GeometryContainer::MultiLineString(g) => g.dimension(),
-            GeometryContainer::MultiPolygon(g) => g.dimension(),
-            GeometryContainer::GeometryCollection(g) => g.dimension(),
-        }
-    }
-}
 
 impl<const SRID: u32, T> GeometryCollection<SRID, T>
 where
@@ -103,15 +81,7 @@ where
     write_ewkb_header(geometrycollection, Some(SRID), out)?;
     out.write_u32::<LittleEndian>(geometrycollection.geometries.len() as u32)?;
     for g_container in geometrycollection.geometries.iter() {
-        match g_container {
-            GeometryContainer::Point(g) => write_point(g, out)?,
-            GeometryContainer::LineString(g) => write_linestring(g, out)?,
-            GeometryContainer::Polygon(g) => write_polygon(g, out)?,
-            GeometryContainer::MultiPoint(g) => write_multi_point(g, out)?,
-            GeometryContainer::MultiLineString(g) => write_multiline(g, out)?,
-            GeometryContainer::MultiPolygon(g) => write_multi_polygon(g, out)?,
-            GeometryContainer::GeometryCollection(g) => write_geometry_collection(g, out)?,
-        };
+        write_geometry_container(g_container, out)?;
     }
     Ok(IsNull::No)
 }
@@ -125,11 +95,10 @@ where
 {
     let g_header = read_ewkb_header::<T>(GeometryType::GeometryCollection, cursor)?;
     check_srid(g_header.srid, SRID)?;
-    read_geometry_collection_body::<SRID, T, P>(g_header.g_type, cursor)
+    read_geometry_collection_body::<SRID, T, P>(cursor)
 }
 
 pub fn read_geometry_collection_body<const SRID: u32, T, P>(
-    g_type: u32,
     cursor: &mut Cursor<&[u8]>,
 ) -> deserialize::Result<GeometryCollection<SRID, P>>
 where
@@ -141,30 +110,7 @@ where
     for _i in 0..geometries_n {
         // skip 1 byte for byte order and 4 bytes for point type
         cursor.read_u8()?;
-        let geom_type = GeometryType::from(cursor.read_u32::<T>()?);
-        let g_container = match geom_type {
-            GeometryType::Point => {
-                GeometryContainer::Point(read_point_coordinates::<SRID, T, P>(cursor, g_type)?)
-            }
-            GeometryType::LineString => {
-                GeometryContainer::LineString(read_linestring_body::<SRID, T, P>(g_type, cursor)?)
-            }
-            GeometryType::Polygon => {
-                GeometryContainer::Polygon(read_polygon_body::<SRID, T, P>(g_type, cursor)?)
-            }
-            GeometryType::MultiPoint => {
-                GeometryContainer::MultiPoint(read_multi_point_body::<SRID, T, P>(g_type, cursor)?)
-            }
-            GeometryType::MultiLineString => GeometryContainer::MultiLineString(
-                read_multiline_body::<SRID, T, P>(g_type, cursor)?,
-            ),
-            GeometryType::MultiPolygon => GeometryContainer::MultiPolygon(
-                read_multi_polygon_body::<SRID, T, P>(g_type, cursor)?,
-            ),
-            GeometryType::GeometryCollection => GeometryContainer::GeometryCollection(
-                read_geometry_collection_body::<SRID, T, P>(g_type, cursor)?,
-            ),
-        };
+        let g_container = read_geometry_container::<SRID, T, P>(cursor)?;
         g_collection.geometries.push(g_container);
     }
     Ok(g_collection)

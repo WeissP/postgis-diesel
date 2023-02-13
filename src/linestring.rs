@@ -1,18 +1,24 @@
-use std::{fmt::Debug, io::Cursor};
-
+use crate::{
+    error::check_srid,
+    ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
+    points::{read_point_coordinates, write_point_coordinates, Dimension},
+    sql_types::*,
+    types::{LineString, PointT},
+};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use diesel::{
     deserialize::{self, FromSql},
     pg::{self, Pg},
     serialize::{self, IsNull, Output, ToSql},
 };
+use std::{fmt::Debug, io::Cursor, iter::FromIterator};
 
-use crate::{
-    ewkb::{read_ewkb_header, write_ewkb_header, EwkbSerializable, GeometryType, BIG_ENDIAN},
-    points::{read_point_coordinates, write_point_coordinates, Dimension},
-    sql_types::*,
-    types::{LineString, PointT}, error::check_srid,
-};
+impl<const SRID: u32, P: PointT<SRID>> FromIterator<P> for LineString<SRID, P> {
+    fn from_iter<T: IntoIterator<Item = P>>(iter: T) -> Self {
+        let points = iter.into_iter().collect();
+        Self { points }
+    }
+}
 
 impl<const SRID: u32, T> EwkbSerializable for LineString<SRID, T>
 where
